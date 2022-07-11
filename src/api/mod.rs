@@ -5,7 +5,7 @@ use actix_web::{
 };
 use utoipa::IntoParams;
 
-use crate::{LogApiKey, RequireApiKey};
+use crate::middleware::{log_api_key::LogApiKey, require_api_key::RequireApiKey};
 
 use crate::models::{
     error_response::ErrorResponse,
