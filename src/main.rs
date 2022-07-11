@@ -19,8 +19,10 @@ use utoipa_swagger_ui::SwaggerUi;
 
 mod models;
 
-mod todo;
-use todo::TodoStore;
+mod api;
+mod repository;
+
+use repository::todo_repository::TodoRepository;
 
 use models::{error_response::ErrorResponse, todo::Todo, todo::TodoUpdateRequest};
 
@@ -34,12 +36,12 @@ async fn main() -> Result<(), impl Error> {
     #[derive(OpenApi)]
     #[openapi(
         handlers(
-            todo::get_todos,
-            todo::create_todo,
-            todo::delete_todo,
-            todo::get_todo_by_id,
-            todo::update_todo,
-            todo::search_todos
+            api::todo_controller::get_todos,
+            api::todo_controller::create_todo,
+            api::todo_controller::delete_todo,
+            api::todo_controller::get_todo_by_id,
+            api::todo_controller::update_todo,
+            api::todo_controller::search_todos
         ),
         components(Todo, TodoUpdateRequest, ErrorResponse),
         tags(
@@ -61,7 +63,7 @@ async fn main() -> Result<(), impl Error> {
         }
     }
 
-    let store = Data::new(TodoStore::default());
+    let store = Data::new(TodoRepository::default());
     // Make instance variable of ApiDoc so all worker threads gets the same instance.
     let openapi = ApiDoc::openapi();
 
@@ -69,7 +71,7 @@ async fn main() -> Result<(), impl Error> {
         // This factory closure is called on each worker thread independently.
         App::new()
             .wrap(Logger::default())
-            .configure(todo::configure(store.clone()))
+            .configure(api::todo_controller::configure(store.clone()))
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-doc/openapi.json", openapi.clone()),
             )
@@ -164,7 +166,7 @@ where
         match req.headers().get(API_KEY_NAME) {
             Some(key) if key != API_KEY => {
                 if self.log_only {
-                    log::debug!("Incorrect api api provided!!!")
+                    log::debug!("Incorrect api key provided!!!")
                 } else {
                     return response(
                         req,

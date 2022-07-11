@@ -22,3 +22,10 @@ pub struct TodoUpdateRequest {
     /// Optional check status to mark is the task done or not.
     pub checked: Option<bool>,
 }
+
+/// Search todos Query
+#[derive(Deserialize, Debug, IntoParams)]
+pub struct SearchTodos {
+    /// Content that should be found from Todo's value field
+    pub value: String,
+}
