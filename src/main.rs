@@ -17,8 +17,12 @@ use utoipa::{
 };
 use utoipa_swagger_ui::SwaggerUi;
 
+mod models;
+
 mod todo;
-use todo::{ErrorResponse, Todo, TodoStore, TodoUpdateRequest};
+use todo::TodoStore;
+
+use models::{error_response::ErrorResponse, todo::Todo, todo::TodoUpdateRequest};
 
 const API_KEY_NAME: &str = "todo_apikey";
 const API_KEY: &str = "utoipa-rocks";
