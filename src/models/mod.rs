@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use utoipa::{Component, IntoParams};
+use utoipa::Component;
 
 pub mod error_response;
 pub mod todo;

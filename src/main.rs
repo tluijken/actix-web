@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate diesel;
+
 use std::{error::Error, net::Ipv4Addr};
 
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
@@ -12,6 +15,7 @@ mod models;
 mod api;
 mod middleware;
 mod repository;
+mod schema;
 
 use repository::todo_repository::TodoRepository;
 
@@ -29,7 +33,6 @@ async fn main() -> Result<(), impl Error> {
             api::todo_controller::delete_todo,
             api::todo_controller::get_todo_by_id,
             api::todo_controller::update_todo,
-            api::todo_controller::search_todos
         ),
         components(Todo, TodoUpdateRequest, ErrorResponse),
         tags(

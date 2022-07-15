@@ -1,7 +1,7 @@
 use super::*;
-
+use diesel::Queryable;
 /// Task to do.
-#[derive(Serialize, Deserialize, Component, Clone, Debug)]
+#[derive(Serialize, Deserialize, Component, Clone, Debug, Queryable)]
 pub struct Todo {
     /// Unique id for the todo item.
     #[component(example = 1)]
@@ -21,11 +21,4 @@ pub struct TodoUpdateRequest {
     pub value: Option<String>,
     /// Optional check status to mark is the task done or not.
     pub checked: Option<bool>,
-}
-
-/// Search todos Query
-#[derive(Deserialize, Debug, IntoParams)]
-pub struct SearchTodos {
-    /// Content that should be found from Todo's value field
-    pub value: String,
 }

@@ -15,8 +15,7 @@ use super::*;
 )]
 #[get("/todo")]
 pub async fn get_todos(todo_store: Data<TodoRepository>) -> impl Responder {
-    let todos = todo_store.todos.lock().unwrap();
-
+    let todos = todo_store.get_all();
     HttpResponse::Ok().json(todos.clone())
 }
 
@@ -41,20 +40,12 @@ pub(super) async fn create_todo(
     todo: Json<Todo>,
     todo_store: Data<TodoRepository>,
 ) -> impl Responder {
-    let mut todos = todo_store.todos.lock().unwrap();
-    let todo = &todo.into_inner();
-
-    todos
-        .iter()
-        .find(|existing| existing.id == todo.id)
-        .map(|existing| {
+    match todo_store.get_by_id(todo.id) {
+        Some(existing) => {
             HttpResponse::Conflict().json(ErrorResponse::Conflict(format!("id = {}", existing.id)))
-        })
-        .unwrap_or_else(|| {
-            todos.push(todo.clone());
-
-            HttpResponse::Ok().json(todo)
-        })
+        }
+        _ => HttpResponse::Ok().json(todo_store.insert(todo.clone())),
+    }
 }
 
 /// Delete Todo by given path variable id.
@@ -78,20 +69,14 @@ pub(super) async fn create_todo(
 )]
 #[delete("/todo/{id}", wrap = "RequireApiKey")]
 pub(super) async fn delete_todo(id: Path<i32>, todo_store: Data<TodoRepository>) -> impl Responder {
-    let mut todos = todo_store.todos.lock().unwrap();
     let id = id.into_inner();
 
-    let new_todos = todos
-        .iter()
-        .filter(|todo| todo.id != id)
-        .cloned()
-        .collect::<Vec<_>>();
-
-    if new_todos.len() == todos.len() {
-        HttpResponse::NotFound().json(ErrorResponse::NotFound(format!("id = {id}")))
-    } else {
-        *todos = new_todos;
-        HttpResponse::Ok().finish()
+    match todo_store.get_by_id(id) {
+        Some(existing) => {
+            todo_store.delete(id);
+            HttpResponse::Ok().finish()
+        }
+        _ => HttpResponse::NotFound().json(ErrorResponse::NotFound(format!("id = {id}"))),
     }
 }
 
@@ -112,16 +97,11 @@ pub(super) async fn get_todo_by_id(
     id: Path<i32>,
     todo_store: Data<TodoRepository>,
 ) -> impl Responder {
-    let todos = todo_store.todos.lock().unwrap();
     let id = id.into_inner();
-
-    todos
-        .iter()
-        .find(|todo| todo.id == id)
-        .map(|todo| HttpResponse::Ok().json(todo))
-        .unwrap_or_else(|| {
-            HttpResponse::NotFound().json(ErrorResponse::NotFound(format!("id = {id}")))
-        })
+    match todo_store.get_by_id(id) {
+        Some(existing) => HttpResponse::Ok().json(existing),
+        _ => HttpResponse::NotFound().json(ErrorResponse::NotFound(format!("id = {id}"))),
+    }
 }
 
 /// Update Todo with given id.
@@ -151,62 +131,20 @@ pub(super) async fn update_todo(
     todo: Json<TodoUpdateRequest>,
     todo_store: Data<TodoRepository>,
 ) -> impl Responder {
-    let mut todos = todo_store.todos.lock().unwrap();
     let id = id.into_inner();
     let todo = todo.into_inner();
 
-    todos
-        .iter_mut()
-        .find_map(|todo| if todo.id == id { Some(todo) } else { None })
-        .map(|existing_todo| {
-            if let Some(checked) = todo.checked {
-                existing_todo.checked = checked;
-            }
-            if let Some(value) = todo.value {
-                existing_todo.value = value;
-            }
-
-            HttpResponse::Ok().json(existing_todo)
-        })
-        .unwrap_or_else(|| {
-            HttpResponse::NotFound().json(ErrorResponse::NotFound(format!("id = {id}")))
-        })
-}
-
-/// Search Todos with by value
-///
-/// Perform search from `Todo`s present in in-memory storage by matching Todo's value to
-/// value provided as query paramter. Returns 200 and matching `Todo` items.
-#[utoipa::path(
-    responses(
-        (status = 200, description = "Search Todos did not result error", body = [Todo]),
-    )
-)]
-#[get("/todo/search")]
-pub(super) async fn search_todos(
-    query: Query<SearchTodos>,
-    todo_store: Data<TodoRepository>,
-) -> impl Responder {
-    let todos = todo_store.todos.lock().unwrap();
-
-    HttpResponse::Ok().json(
-        todos
-            .iter()
-            .filter(|todo| {
-                todo.value
-                    .to_lowercase()
-                    .contains(&query.value.to_lowercase())
-            })
-            .cloned()
-            .collect::<Vec<_>>(),
-    )
+    let update_result = todo_store.update(id, todo);
+    match update_result {
+        Ok(result) => HttpResponse::Ok().json(result),
+        Err(error_message) => HttpResponse::InternalServerError().finish(),
+    }
 }
 
 pub fn configure(store: Data<TodoRepository>) -> impl FnOnce(&mut ServiceConfig) {
     |config: &mut ServiceConfig| {
         config
             .app_data(store)
-            .service(search_todos)
             .service(get_todos)
             .service(create_todo)
             .service(delete_todo)
