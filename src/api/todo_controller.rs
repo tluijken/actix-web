@@ -1,5 +1,9 @@
 use super::*;
+use crate::schema::todos::dsl::*;
 
+use crate::diesel::prelude::*;
+use crate::models::todo::{Todo, TodoUpdateRequest};
+use crate::repository::db_context;
 /// Get list of todos.
 ///
 /// List todos from in-memory todo store.
@@ -14,9 +18,11 @@ use super::*;
     )
 )]
 #[get("/todo")]
-pub async fn get_todos(todo_store: Data<TodoRepository>) -> impl Responder {
-    let todos = todo_store.get_all();
-    HttpResponse::Ok().json(todos.clone())
+pub async fn get_todos(db_pool: Data<db_context::PostgresPool>) -> impl Responder {
+    let result = todos
+        .load::<Todo>(&db_pool.get().unwrap())
+        .expect("Error loading posts");
+    HttpResponse::Ok().json(result.clone())
 }
 
 /// Create new Todo to shared in-memory storage.
@@ -67,16 +73,19 @@ pub(super) async fn create_todo(
         ("api_key" = [])
     )
 )]
-#[delete("/todo/{id}", wrap = "RequireApiKey")]
-pub(super) async fn delete_todo(id: Path<i32>, todo_store: Data<TodoRepository>) -> impl Responder {
-    let id = id.into_inner();
+#[delete("/todo/{todo_id}", wrap = "RequireApiKey")]
+pub(super) async fn delete_todo(
+    todo_id: Path<i32>,
+    todo_store: Data<TodoRepository>,
+) -> impl Responder {
+    let todo_id = todo_id.into_inner();
 
-    match todo_store.get_by_id(id) {
+    match todo_store.get_by_id(todo_id) {
         Some(existing) => {
-            todo_store.delete(id);
+            todo_store.delete(todo_id);
             HttpResponse::Ok().finish()
         }
-        _ => HttpResponse::NotFound().json(ErrorResponse::NotFound(format!("id = {id}"))),
+        _ => HttpResponse::NotFound().json(ErrorResponse::NotFound(format!("id = {todo_id}"))),
     }
 }
 
@@ -92,15 +101,16 @@ pub(super) async fn delete_todo(id: Path<i32>, todo_store: Data<TodoRepository>)
         ("id", description = "Unique storage id of Todo")
     )
 )]
-#[get("/todo/{id}")]
+#[get("/todo/{todo_id}")]
 pub(super) async fn get_todo_by_id(
-    id: Path<i32>,
-    todo_store: Data<TodoRepository>,
+    todo_id: Path<i32>,
+    db_pool: Data<db_context::PostgresPool>,
 ) -> impl Responder {
-    let id = id.into_inner();
-    match todo_store.get_by_id(id) {
-        Some(existing) => HttpResponse::Ok().json(existing),
-        _ => HttpResponse::NotFound().json(ErrorResponse::NotFound(format!("id = {id}"))),
+    let todo_id = todo_id.into_inner();
+    let result = todos.find(todo_id).first::<Todo>(&db_pool.get().unwrap());
+    match result {
+        Ok(existing) => HttpResponse::Ok().json(existing),
+        _ => HttpResponse::NotFound().json(ErrorResponse::NotFound(format!("id = {todo_id}"))),
     }
 }
 
@@ -125,16 +135,16 @@ pub(super) async fn get_todo_by_id(
         ("api_key" = [])
     )
 )]
-#[put("/todo/{id}", wrap = "LogApiKey")]
+#[put("/todo/{todo_id}", wrap = "LogApiKey")]
 pub(super) async fn update_todo(
-    id: Path<i32>,
+    todo_id: Path<i32>,
     todo: Json<TodoUpdateRequest>,
     todo_store: Data<TodoRepository>,
 ) -> impl Responder {
-    let id = id.into_inner();
+    let todo_id = todo_id.into_inner();
     let todo = todo.into_inner();
 
-    let update_result = todo_store.update(id, todo);
+    let update_result = todo_store.update(todo_id, todo);
     match update_result {
         Ok(result) => HttpResponse::Ok().json(result),
         Err(error_message) => HttpResponse::InternalServerError().finish(),

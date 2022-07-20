@@ -27,10 +27,11 @@ embed_migrations!();
 #[actix_web::main]
 async fn main() -> Result<(), impl Error> {
     env_logger::init();
+
+    let pool = repository::db_context::get_pool();
     {
-        let connection = repository::db_context::establish_connection();
         // This will run the necessary migrations.
-        match embedded_migrations::run(&connection) {
+        match embedded_migrations::run(&pool.get().unwrap()) {
             Ok(()) => println!("Succesfully applied pending migrations (if any)"),
             Err(_) => println!("Unable to apply pending migrations"),
         }
@@ -67,10 +68,10 @@ async fn main() -> Result<(), impl Error> {
     let store = Data::new(TodoRepository::default());
     // Make instance variable of ApiDoc so all worker threads gets the same instance.
     let openapi = ApiDoc::openapi();
-
     HttpServer::new(move || {
         // This factory closure is called on each worker thread independently.
         App::new()
+            .app_data(Data::new(pool.clone()))
             .wrap(Logger::default())
             .configure(api::todo_controller::configure(store.clone()))
             .service(
