@@ -16,3 +16,4 @@ utoipa = { version = "^1.1.0", features = ["actix_extras"] }
 utoipa-swagger-ui = {version = "^1.1.0", features = ["actix-web"]}
 diesel = { version = "1.4.4", features = ["postgres"] }
 dotenv = "0.15.0"
+diesel_migrations = "1.4.0"

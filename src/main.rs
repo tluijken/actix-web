@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate diesel;
+#[macro_use]
+extern crate diesel_migrations;
 
 use std::{error::Error, net::Ipv4Addr};
 
@@ -21,10 +23,18 @@ use repository::todo_repository::TodoRepository;
 
 use models::{error_response::ErrorResponse, todo::Todo, todo::TodoUpdateRequest};
 
+embed_migrations!();
 #[actix_web::main]
 async fn main() -> Result<(), impl Error> {
     env_logger::init();
-
+    {
+        let connection = repository::db_context::establish_connection();
+        // This will run the necessary migrations.
+        match embedded_migrations::run(&connection) {
+            Ok(()) => println!("Succesfully applied pending migrations (if any)"),
+            Err(_) => println!("Unable to apply pending migrations"),
+        }
+    }
     #[derive(OpenApi)]
     #[openapi(
         handlers(
