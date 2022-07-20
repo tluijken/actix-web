@@ -1,0 +1,13 @@
+version: "3.9"
+networks:
+  default:
+    name: pdms
+services:
+  todo_api:
+    image: todo_api:local
+    container_name: todo_api_local 
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgres://pds-rw:baseflow@localhost/todo_api
